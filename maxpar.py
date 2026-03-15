@@ -8,6 +8,7 @@ Description : Bibliothèque Python pour automatiser la parallélisation
               maximale d'un système de tâches.
 ==============================================================================
 """
+import threading
 
 
 # Création d'une classe Task pour représenter une tâche dans le système de tâches
@@ -71,5 +72,27 @@ class TaskSystem:
 
     # Méthode pour exécuter les tâches dans l'ordre parallèle maximal
     def run(self):
-        for task in self.tasks:
-            task.run()
+        tasks_todo = self.tasks.copy()
+        completed = set()
+        while tasks_todo:
+            ready_tasks = []
+            # 1. Trouver toutes les tâches prêtes (dépendances terminées)
+            for task in tasks_todo:
+                deps = self.getDependencies(task.name)
+                if all(dep in completed for dep in deps):
+                    ready_tasks.append(task)
+            if not ready_tasks:
+                raise ValueError("Erreur : Cycle détecté, exécution bloquée.")
+            # 2. Lancer toutes les tâches prêtes en même temps avec des Threads
+            threads = []
+            for task in ready_tasks:
+                thread = threading.Thread(target=task.run)
+                threads.append(thread)
+                thread.start()
+            # 3. Attendre que toutes les tâches de cette vague soient finies
+            for thread in threads:
+                thread.join()
+            # 4. Marquer ces tâches comme terminées et les retirer de la liste d'attente
+            for task in ready_tasks:
+                completed.add(task.name)
+                tasks_todo.remove(task)

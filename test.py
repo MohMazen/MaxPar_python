@@ -34,5 +34,5 @@ sys.run()
 print(f"Après run() : X={X}, Y={Y}, Z={Z}")
 
 sys.draw()
-# sys.parCost()
+sys.parCost()
 # sys.detTestRnd(globals())

@@ -116,41 +116,39 @@ class TaskSystem:
         nx.draw(G, with_labels=True, node_color='lightblue', node_size=2000)
         plt.title("Graphe de précédence")
         plt.show()
-    
-    def parCost(self,nb_exectutions=5):
+
+    def parCost(self, nb_exectutions=5):
         self.runSeq()
         self.run()
 
         temps_seq = []
-        for i in range (nb_exectutions):
+        for i in range(nb_exectutions):
             debut = time.perf_counter()
             self.runSeq()
             fin = time.perf_counter()
             temps_seq.append(fin - debut)
 
-        moyenne_seq = sum (temps_seq) / nb_exectutions
-
+        moyenne_seq = sum(temps_seq) / nb_exectutions
 
         temps_par = []
-        for i in range (nb_exectutions):
+        for i in range(nb_exectutions):
             debut = time.perf_counter()
             self.run()
             fin = time.perf_counter()
             temps_par.append(fin - debut)
-            
-        moyenne_par = sum (temps_par) / nb_exectutions
 
-        #Calcul de la différence
-
+        moyenne_par = sum(temps_par) / nb_exectutions
+        # Calcul de la différence
         différence = moyenne_seq - moyenne_par
 
         if différence > 0:
             print(f"Le parallélisme est plus rapide avec un gain de {différence} secondes !")
-        elif différence <0:
-            print(f"Le sequenctiel est plus rapide avec une perte de {abs(différence)} secondes !") #valeur absolue pour eviter un résulat négative
+        elif différence < 0:
+            # On affiche valeur absolue pour eviter un résulat négative
+            print(
+                f"Le sequenctiel est plus rapide avec une perte de {abs(différence)} secondes !")
         else:
             print("Les deux executions sont identiques")
-
 
         print("Voici les temps moyen sur 10 exectutions")
         print(f"Temps moyen séquenctiel sur 10 exectutions : {moyenne_seq} secondes")

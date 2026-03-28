@@ -8,14 +8,13 @@ Description : Bibliothèque Python pour automatiser la parallélisation
               maximale d'un système de tâches.
 ==============================================================================
 """
-
+import random
 import threading
 import time
 import networkx as nx
 import matplotlib.pyplot as plt
 
 
-# Création d'une classe Task pour représenter une tâche [cite: 17, 18]
 class Task:
     def __init__(self, name="", reads=None, writes=None, run=None):
         self.name = name
@@ -24,20 +23,16 @@ class Task:
         self.run = run
 
 
-# Création d'une classe TaskSystem pour représenter un système de tâches [cite: 115]
 class TaskSystem:
     def __init__(self, tasks=None, precedences_dict=None):
         self.tasks = tasks or []
         self.precedences_dict = precedences_dict or {}
 
-        # Récupérer la liste de tous les noms
         task_names = [t.name for t in self.tasks]
 
-        # 1. Vérifier les noms dupliqués [cite: 127]
         if len(task_names) != len(set(task_names)):
             raise ValueError("Erreur : Des tâches ont le même nom.")
 
-        # 2. Vérifier que les tâches du dictionnaire existent bien [cite: 127]
         for task, deps in self.precedences_dict.items():
             if task not in task_names:
                 raise ValueError(f"Erreur : La tâche '{task}' du dictionnaire n'existe pas.")
@@ -45,14 +40,34 @@ class TaskSystem:
                 if dep not in task_names:
                     raise ValueError(f"Erreur : La dépendance '{dep}' n'existe pas.")
 
-    # Méthode pour récupérer les dépendances d'une tâche [cite: 123]
+        # On calcule le vrai parallélisme maximal via les conditions de Bernstein
+        self.precedences_dict = self._calculer_parallelisme_maximal()
+
+    def _sont_en_conflit(self, t1, t2):
+        # Conditions de Bernstein : deux tâches interfèrent si elles partagent
+        # une variable en écriture, ou si l'une écrit ce que l'autre lit
+        w1, w2 = set(t1.writes), set(t2.writes)
+        r1, r2 = set(t1.reads), set(t2.reads)
+        return bool((w1 & r2) or (r1 & w2) or (w1 & w2))
+
+    def _calculer_parallelisme_maximal(self):
+        task_map = {t.name: t for t in self.tasks}
+        nouveau_dict = {}
+
+        for task_name, deps in self.precedences_dict.items():
+            tache_courante = task_map[task_name]
+            # On ne garde que les dépendances qui causent vraiment un conflit
+            deps_utiles = [d for d in deps if self._sont_en_conflit(tache_courante, task_map[d])]
+            nouveau_dict[task_name] = deps_utiles
+
+        return nouveau_dict
+
     def getDependencies(self, task):
         task_names = [t.name for t in self.tasks]
         if task not in task_names:
             raise ValueError(f"Erreur : La tâche '{task}' n'existe pas.")
         return self.precedences_dict.get(task, [])
 
-    # Méthode pour exécuter les tâches dans l'ordre séquentiel [cite: 124]
     def runSeq(self):
         tasks_todo = self.tasks.copy()
         completed = set()
@@ -60,7 +75,6 @@ class TaskSystem:
             progress = False
             for task in tasks_todo:
                 deps = self.getDependencies(task.name)
-                # Si toutes les dépendances sont terminées, on l'exécute
                 if all(dep in completed for dep in deps):
                     if task.run is None:
                         raise ValueError(f"Erreur : La tâche '{task.name}' n'a pas de fonction.")
@@ -72,84 +86,98 @@ class TaskSystem:
             if not progress:
                 raise ValueError("Erreur : Cycle détecté, ordre d'exécution impossible.")
 
-    # Méthode pour exécuter les tâches dans l'ordre parallèle maximal [cite: 125]
     def run(self):
-        tasks_todo = self.tasks.copy()
-        completed = set()
-        while tasks_todo:
-            ready_tasks = []
-            # 1. Trouver toutes les tâches prêtes
-            for task in tasks_todo:
-                deps = self.getDependencies(task.name)
-                if all(dep in completed for dep in deps):
-                    ready_tasks.append(task)
+        # Un sémaphore par tâche, bloqué à 0 au départ
+        semaphores = {task.name: threading.Semaphore(0) for task in self.tasks}
 
-            if not ready_tasks:
-                raise ValueError("Erreur : Cycle détecté, exécution bloquée.")
+        def executer_tache(task):
+            # On attend que chaque dépendance ait terminé
+            for dep_name in self.getDependencies(task.name):
+                semaphores[dep_name].acquire()
+                semaphores[dep_name].release()  # on remet le jeton pour les autres
 
-            # 2. Lancer toutes les tâches prêtes en même temps avec des Threads
-            threads = []
-            for task in ready_tasks:
-                thread = threading.Thread(target=task.run)
-                threads.append(thread)
-                thread.start()
+            if task.run is None:
+                raise ValueError(f"Erreur : La tâche '{task.name}' n'a pas de fonction.")
+            task.run()
 
-            # 3. Attendre que toutes les tâches soient finies
-            for thread in threads:
-                thread.join()
+            # On signale que cette tâche est terminée
+            semaphores[task.name].release()
 
-            # 4. Marquer ces tâches comme terminées
-            for task in ready_tasks:
-                completed.add(task.name)
-                tasks_todo.remove(task)
+        threads = [threading.Thread(target=executer_tache, args=(task,)) for task in self.tasks]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-    # Méthode pour afficher le graphe de précédence
     def draw(self):
         G = nx.DiGraph()
-        # Créer les flèches allant des dépendances vers les tâches
         for task_name, deps in self.precedences_dict.items():
             for dep in deps:
                 G.add_edge(dep, task_name)
 
-        # Dessiner et afficher la fenêtre
+        for task in self.tasks:
+            if task.name not in G:
+                G.add_node(task.name)
+
         plt.figure(figsize=(6, 4))
         nx.draw(G, with_labels=True, node_color='lightblue', node_size=2000)
         plt.title("Graphe de précédence")
         plt.show()
 
-    def parCost(self, nb_exectutions=5):
+    def parCost(self, nb_executions=10):
+        # Chauffe du cache avant de mesurer
         self.runSeq()
         self.run()
 
         temps_seq = []
-        for i in range(nb_exectutions):
+        for _ in range(nb_executions):
             debut = time.perf_counter()
             self.runSeq()
-            fin = time.perf_counter()
-            temps_seq.append(fin - debut)
-
-        moyenne_seq = sum(temps_seq) / nb_exectutions
+            temps_seq.append(time.perf_counter() - debut)
 
         temps_par = []
-        for i in range(nb_exectutions):
+        for _ in range(nb_executions):
             debut = time.perf_counter()
             self.run()
-            fin = time.perf_counter()
-            temps_par.append(fin - debut)
+            temps_par.append(time.perf_counter() - debut)
 
-        moyenne_par = sum(temps_par) / nb_exectutions
-        # Calcul de la différence
-        différence = moyenne_seq - moyenne_par
+        moyenne_seq = sum(temps_seq) / nb_executions
+        moyenne_par = sum(temps_par) / nb_executions
+        difference = moyenne_seq - moyenne_par
 
-        if différence > 0:
-            print(f"Le parallélisme est plus rapide avec un gain de {différence} secondes !")
-        elif différence < 0:
-            # On affiche valeur absolue pour eviter un résulat négative
-            print(
-                f"Le sequenctiel est plus rapide avec une perte de {abs(différence)} secondes !")
+        if difference > 0:
+            print(f"Le parallélisme est plus rapide avec un gain de {difference:.6f} secondes !")
+        elif difference < 0:
+            print(f"Le séquentiel est plus rapide avec une perte de {abs(difference):.6f} secondes !")
         else:
-            print("Les deux executions sont identiques")
+            print("Les deux exécutions sont identiques.")
 
-        print("Voici les temps moyen sur 10 exectutions")
-        print(f"Temps moyen séquenctiel sur 10 exectutions : {moyenne_seq} secondes")
-        print(f"Temps moyen parallèle sur 10 exectutions : {moyenne_par} secondes")
+        print(f"\nVoici les temps moyens sur {nb_executions} exécutions :")
+        print(f"Temps moyen séquentiel : {moyenne_seq:.6f} secondes")
+        print(f"Temps moyen parallèle  : {moyenne_par:.6f} secondes")
+
+    def detTestRnd(self, globals_dict, nb_tests=5):
+        for _ in range(nb_tests):
+            # On initialise les variables avec des valeurs aléatoires
+            for task in self.tasks:
+                for var in task.writes + task.reads:
+                    if var in globals_dict:
+                        globals_dict[var] = random.randint(1, 100)
+
+            self.run()
+            etat_1 = tuple(globals_dict.get(var) for t in self.tasks for var in t.writes)
+
+            # On remet les mêmes valeurs et on relance pour comparer
+            for task in self.tasks:
+                for var in task.writes + task.reads:
+                    if var in globals_dict:
+                        globals_dict[var] = random.randint(1, 100)
+
+            self.run()
+            etat_2 = tuple(globals_dict.get(var) for t in self.tasks for var in t.writes)
+
+            if etat_1 != etat_2:
+                print("Erreur : Le système n'est pas déterminé.")
+                return
+
+        print("Succès : Le système est déterminé.")

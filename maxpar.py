@@ -13,6 +13,7 @@ import threading
 import time
 import networkx as nx
 import matplotlib.pyplot as plt
+import random
 
 
 # Création d'une classe Task pour représenter une tâche [cite: 17, 18]
@@ -153,3 +154,38 @@ class TaskSystem:
         print("Voici les temps moyen sur 10 exectutions")
         print(f"Temps moyen séquenctiel sur 10 exectutions : {moyenne_seq} secondes")
         print(f"Temps moyen parallèle sur 10 exectutions : {moyenne_par} secondes")
+
+
+    def detTestRnd(self, globals_point):
+
+        var_a_tester = [
+        nom for nom, val in globals_point.items()
+        if isinstance(val, int)
+        ]
+
+        #Utilisation de globales aléatoires UNIQUES, répétées avant chaque test
+        valeur_rando = {val: random.randint(0, 50) for val in var_a_tester}
+
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+        
+        self.run()
+        test1 = {val: globals_point[val] for val in var_a_tester}
+
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+                
+        self.run()
+        test2 = {val: globals_point[val] for val in var_a_tester}
+        
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+        
+        self.run()
+        test3 = {val: globals_point[val] for val in var_a_tester}
+
+        if test1 == test2 == test3 :
+            return "Le système est déterministe."
+        else:
+            return "Le système n'est pas déterministe"
+        

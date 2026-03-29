@@ -156,28 +156,35 @@ class TaskSystem:
         print(f"Temps moyen séquentiel : {moyenne_seq:.6f} secondes")
         print(f"Temps moyen parallèle  : {moyenne_par:.6f} secondes")
 
-    def detTestRnd(self, globals_dict, nb_tests=5):
-        for _ in range(nb_tests):
-            # On initialise les variables avec des valeurs aléatoires
-            for task in self.tasks:
-                for var in task.writes + task.reads:
-                    if var in globals_dict:
-                        globals_dict[var] = random.randint(1, 100)
+    def detTestRnd(self, globals_point):
 
-            self.run()
-            etat_1 = tuple(globals_dict.get(var) for t in self.tasks for var in t.writes)
+        var_a_tester = [
+        nom for nom, val in globals_point.items()
+        if isinstance(val, int)
+        ]
 
-            # On remet les mêmes valeurs et on relance pour comparer
-            for task in self.tasks:
-                for var in task.writes + task.reads:
-                    if var in globals_dict:
-                        globals_dict[var] = random.randint(1, 100)
+        #Utilisation de globales aléatoires UNIQUES, répétées avant chaque test
+        valeur_rando = {val: random.randint(0, 50) for val in var_a_tester}
 
-            self.run()
-            etat_2 = tuple(globals_dict.get(var) for t in self.tasks for var in t.writes)
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+        
+        self.run()
+        test1 = {val: globals_point[val] for val in var_a_tester}
 
-            if etat_1 != etat_2:
-                print("Erreur : Le système n'est pas déterminé.")
-                return
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+                
+        self.run()
+        test2 = {val: globals_point[val] for val in var_a_tester}
+        
+        for val in var_a_tester:
+            globals_point[val] = valeur_rando[val]
+        
+        self.run()
+        test3 = {val: globals_point[val] for val in var_a_tester}
 
-        print("Succès : Le système est déterminé.")
+        if test1 == test2 == test3 :
+            return "Le système est déterministe."
+        else:
+            return "Le système n'est pas déterministe"

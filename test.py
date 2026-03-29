@@ -1,7 +1,7 @@
 import time
 from maxpar import Task, TaskSystem
 
-# Variables globales pour simuler la mémoire partagée
+# var_a_testeriables globales pour simuler la mémoire partagée
 A, B, C, D, E = 0, 0, 0, 0, 0
 
 # Définition des fonctions d'exécution (avec un petit délai pour simuler un calcul)
@@ -45,6 +45,9 @@ print(f"Résultats après run : A={A}, B={B}, C={C}, D={D}, E={E}\n")
 
 print("=== COMPARAISON DES PERFORMANCES ===")
 sys.parCost(nb_exectutions=3) # Utilise un petit nombre pour ne pas trop attendre
+
+print("=== TEST DU DETERMINISME ===")
+print(sys.detTestRnd(globals()))
 
 print("\n=== AFFICHAGE DU GRAPHE ===")
 sys.draw()

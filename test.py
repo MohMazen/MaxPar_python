@@ -50,11 +50,8 @@ print(f"  A={A}, B={B}, C={C}, D={D}, E={E}")
 print("\n=== COMPARAISON DES PERFORMANCES ===")
 sys1.parCost(nb_executions=3)
 
-print("\n=== TEST DE DÉTERMINISME ===")
-sys1.detTestRnd(globals(), nb_tests=5)
-
 print("=== TEST DU DETERMINISME ===")
-print(sys.detTestRnd(globals()))
+print(sys1.detTestRnd(globals()))
 
 print("\n=== AFFICHAGE DU GRAPHE ===")
 sys1.draw()
